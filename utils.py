@@ -18,9 +18,16 @@ def parse_csv(filename, num_hpc=12):
             output_labels.append(int(entries[0]))
             entries = entries[1:]
 
-            input_matricies.append([list(map(lambda a: float(a),
-                                        entries[i*num_hpc:(i+1)*num_hpc]))
-                                    for i in range(int(len(entries) / num_hpc))])
+            # input_matricies.append([list(map(lambda a: float(a),
+            #                                  entries[i*num_hpc:(i+1)*num_hpc]))
+            #                         for i in range(int(len(entries) / num_hpc))])
+
+            input_matrix = [list(map(lambda a: float(a),
+                                     entries[i*num_hpc:(i+1)*num_hpc]))
+                            for i in range(int(len(entries) / num_hpc))]
+
+            # normalize matrix
+            input_matricies.append(input_matrix / np.linalg.norm(input_matrix))
 
 
     return np.array(input_matricies), np.array(output_labels)

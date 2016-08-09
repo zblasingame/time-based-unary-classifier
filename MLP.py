@@ -9,20 +9,21 @@ class MLP:
         def create_weights(shape, name):
             return tf.Variable(tf.random_normal(shape, stddev=0.1), name=name)
 
-        net = [{'weights': create_weights([sizes[i], sizes[i+1]],
-                                          'w' + str(i)),
-                'biases': create_weights([sizes[i+1]], 'b' + str(i)),
-                'activation': activations[i]}
-               for i in range(len(sizes) - 1)]
+        self.network = [{'weights': create_weights([sizes[i], sizes[i+1]],
+                                                   'w' + str(i)),
+                         'biases': create_weights([sizes[i+1]], 'b' + str(i)),
+                         'activation': activations[i]}
+                        for i in range(len(sizes) - 1)]
+
 
     # Method that creates network
     def create_network(self, X, keep_prob):
         def compose_func(a, x, w, b):
             return a(tf.matmul(x, w) + b) 
 
-        prev_value = X
+        prev_value = tf.expand_dims(X, 0)
         for i, entry in enumerate(self.network):
-            activation = compose_func(entry['activation'],
+            prev_value = compose_func(entry['activation'],
                                       prev_value,
                                       entry['weights'],
                                       entry['biases'])
@@ -31,6 +32,7 @@ class MLP:
                 prev_value = tf.nn.dropout(prev_value, keep_prob)
 
         return prev_value
+
 
     # Returns L2 loss
     def get_l2_loss(self):
