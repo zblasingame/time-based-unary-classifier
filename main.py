@@ -35,9 +35,11 @@ args = parser.parse_args()
 
 # Network parameters
 learning_rate = 0.001
-reg_param = 0.001
+reg_param = 0.0
+dropout_prob = 1.0 
 training_epochs = 4
 display_step = 1
+std_pram = 0.75 
 
 if args.train:
     trX, trY = parse_csv(args.train_file, num_hpc=12)
@@ -48,25 +50,22 @@ if args.testing:
 
 num_input = len(trX[0][0]) if args.train else len(teX[0][0])
 num_steps = len(trX[0]) if args.train else len(teX[0])
-num_hidden = 128
+num_hidden = 10
 num_out = 1
 
 training_size = len(trX) if args.train else None
 testing_size = len(teX) if args.testing else None
 
 
-# X = tf.placeholder('float', [num_steps, num_input])
-X = tf.placeholder('float', [num_steps * num_input])
+X = tf.placeholder('float', [num_steps, num_input])
+# X = tf.placeholder('float', [num_steps * num_input])
 Y = tf.placeholder('float')
 keep_prob = tf.placeholder('float')
 cost_threshold = tf.Variable([0, 0], dtype=tf.float32)
 
 # define weights
-# weights = dict(out=tf.Variable(tf.random_normal([num_hidden, num_out])))
-# biases = dict(out=tf.Variable(tf.random_normal([num_out])))
-
-# weights = dict(out=tf.Variable(tf.random_normal([num_hidden, num_out])))
-# biases = dict(out=tf.Variable(tf.random_normal([num_out])))
+weights = dict(out=tf.Variable(tf.random_normal([num_hidden, num_out])))
+biases = dict(out=tf.Variable(tf.random_normal([num_out])))
 
 # returns an rnn
 def rnn(X, weights, biases):
@@ -79,21 +78,13 @@ def rnn(X, weights, biases):
 
     return tf.matmul(outputs[-1], weights['out']) + biases['out']
 
-# Define MLP
-# sizes = [num_input * num_steps, 200, 200, num_out]
-# activations = [tf.nn.relu, tf.nn.relu, tf.identity]
-# mlp = MLP(sizes, activations)
-
 # Define AutoEncoder
-ae = MLP([num_input * num_steps, 200, 10, 200, num_input * num_steps],
-         [tf.nn.relu, tf.nn.sigmoid, tf.nn.relu, tf.nn.sigmoid])
+# ae = MLP([num_input * num_steps, 25, 2, 25, num_input * num_steps],
+#          [tf.nn.relu, tf.nn.sigmoid, tf.nn.relu, tf.identity])
 
-
-# prediction = rnn(X, weights, biases)
-# prediction = mlp.create_network(X, keep_prob)
-prediction = ae.create_network(X, keep_prob)
 #cost = tf.reduce_mean(tf.square(prediction - Y)) + reg_param * mlp.get_l2_loss()
-cost = tf.reduce_mean(tf.square(prediction - X))
+prediction = rnn(X, weights, biases)
+cost = tf.reduce_mean(tf.square(prediction - Y))
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
 
 init_op = tf.initialize_all_variables()
@@ -108,23 +99,28 @@ with tf.Session() as sess:
             avg_cost = 0
             for i in range(training_size):
                 if trY[i] == 1:
-                    feed_x = trX[i].flatten()
-                    _, c = sess.run([optimizer, cost], feed_dict={X: feed_x,
-                                                                  Y: trY[i],
-                                                                  keep_prob: 1})
+                    # feed_x = trX[i].flatten()
+                    # _, c = sess.run([optimizer, cost],
+                    #                 feed_dict={X: feed_x,
+                    #                            Y: trY[i],
+                    #                            keep_prob: dropout_prob})
+
+                    feed_dict = {X: trX[i], Y: trY[i]}
+                    _, c, pred = sess.run([optimizer, cost, prediction],
+                                          feed_dict=feed_dict)
 
                     avg_cost += c / training_size
 
                     if epoch == training_epochs - 1:
-                        costs.append(c)
+                        costs.append(pred)
 
             if i % display_step == 0:
                 print('Epoch: {0:03} with cost={1:.9f}'.format(epoch+1,
                                                                avg_cost))
 
         # calculate cost threshold
-        sess.run(cost_threshold.assign([np.mean(costs) - np.std(costs),
-                                        np.mean(costs) + np.std(costs)]))
+        sess.run(cost_threshold.assign([np.mean(costs)-std_pram*np.std(costs),
+                                        np.mean(costs)+std_pram*np.std(costs)]))
 
         print('Optimization Finished')
 
@@ -143,30 +139,24 @@ with tf.Session() as sess:
         avg_neg_cost = 0
 
         for i in range(testing_size):
-            if teY[i] == 1:
-                pos_size += 1
-            else:
-                neg_size += 1
-
-            feed_x = teX[i].flatten()
-            pred = sess.run(cost, feed_dict={X: feed_x,
-                                             Y: teY[i],
-                                             keep_prob: 1.0})
+            feed_x = teX[i]#.flatten()
+            pred = sess.run(prediction, feed_dict={X: feed_x,
+                                                   keep_prob: 1.0})
 
             bounds = cost_threshold.eval()
 
-            guess_label = 1 if bounds[1] > pred > bounds[0] else -1
+            guess_label = 1 if bounds[1] > float(pred) > bounds[0] else -1
 
             if i % 50 == 0:
-                display_str = 'Prediction: {:.10f}\t\t\tLabel: {}\t\t\tGuess: {}'
-                print(display_str.format(pred, teY[i], guess_label))
+                display_str = 'Prediction: {:.10f}\t\tLabel: {}\t\tGuess: {:2}'
+                print(display_str.format(float(pred), teY[i], guess_label))
 
             if teY[i] == 1:
                 pos_size += 1
-                avg_pos_cost += pred / testing_size
+                avg_pos_cost += float(pred)
             else:
                 neg_size += 1
-                avg_neg_cost += pred / testing_size
+                avg_neg_cost += float(pred)
 
 
             if guess_label == teY[i]:
@@ -179,11 +169,13 @@ with tf.Session() as sess:
         print('Accuracy: {:.2f}%'.format(100 * float(accCount) / testing_size))
         if pos_size != 0:
             false_neg_rate = 100 * float(false_neg_count) / pos_size
+            avg_pos_cost /= pos_size
             print('false_neg_rate={}'.format(false_neg_rate))
+            print('avg_pos_cost={}'.format(avg_pos_cost))
         if neg_size != 0:
             false_pos_rate = 100 * float(false_pos_count) / neg_size
+            avg_neg_cost /= neg_size
             print('false_pos_rate={}'.format(false_pos_rate))
-        print('avg_pos_cost={}'.format(avg_pos_cost))
-        print('avg_neg_cost={}'.format(avg_neg_cost))
+            print('avg_neg_cost={}'.format(avg_neg_cost))
         print('upper={}'.format(bounds[1]))
         print('lower={}'.format(bounds[0]))

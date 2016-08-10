@@ -4,7 +4,7 @@
 import numpy as np
 
 # function parses csv and returns a list of input matrices and output labels
-def parse_csv(filename, num_hpc=12):
+def parse_csv(filename, num_hpc=12, normalize=True):
     input_matricies = []
     output_labels = []
 
@@ -27,7 +27,10 @@ def parse_csv(filename, num_hpc=12):
                             for i in range(int(len(entries) / num_hpc))]
 
             # normalize matrix
-            input_matricies.append(input_matrix / np.linalg.norm(input_matrix))
+            if normalize:
+                input_matricies.append(input_matrix/np.linalg.norm(input_matrix))
+            else:
+                input_matricies.append(input_matrix)
 
 
     return np.array(input_matricies), np.array(output_labels)
