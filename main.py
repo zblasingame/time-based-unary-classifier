@@ -30,6 +30,13 @@ parser.add_argument('--train_file',
 parser.add_argument('--test_file',
                     type=str,
                     help='Location of testing file');
+parser.add_argument('--num_units',
+                    type=int,
+                    default=None,
+                    help='Number of units in the LSTM-RNN')
+parser.add_argument('--parser_stats',
+                    action='store_true',
+                    help='Flag to print results in a parser friendly format')
 
 args = parser.parse_args()
 
@@ -37,20 +44,20 @@ args = parser.parse_args()
 learning_rate = 0.001
 reg_param = 0.0
 dropout_prob = 1.0 
-training_epochs = 4
+training_epochs = 4 
 display_step = 1
-std_pram = 0.75 
+std_pram = 1.0 
 
 if args.train:
-    trX, trY = parse_csv(args.train_file, num_hpc=12)
+    trX, trY = parse_csv(args.train_file, num_hpc=12, normalize=True)
 
 if args.testing:
-    teX, teY = parse_csv(args.test_file, num_hpc=12)
+    teX, teY = parse_csv(args.test_file, num_hpc=12, normalize=True)
 
 
 num_input = len(trX[0][0]) if args.train else len(teX[0][0])
 num_steps = len(trX[0]) if args.train else len(teX[0])
-num_hidden = 10
+num_units = 15 if args.num_units == None else args.num_units  
 num_out = 1
 
 training_size = len(trX) if args.train else None
@@ -64,12 +71,12 @@ keep_prob = tf.placeholder('float')
 cost_threshold = tf.Variable([0, 0], dtype=tf.float32)
 
 # define weights
-weights = dict(out=tf.Variable(tf.random_normal([num_hidden, num_out])))
+weights = dict(out=tf.Variable(tf.random_normal([num_units, num_out])))
 biases = dict(out=tf.Variable(tf.random_normal([num_out])))
 
 # returns an rnn
 def rnn(X, weights, biases):
-    lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(num_hidden, state_is_tuple=True)
+    lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(num_units, state_is_tuple=True)
 
     # split input matrix by time steps
     input_list = tf.split(0, num_steps, X)
@@ -77,6 +84,7 @@ def rnn(X, weights, biases):
     outputs, states = tf.nn.rnn(lstm_cell, input_list, dtype=tf.float32)
 
     return tf.matmul(outputs[-1], weights['out']) + biases['out']
+
 
 # Define AutoEncoder
 # ae = MLP([num_input * num_steps, 25, 2, 25, num_input * num_steps],
@@ -99,12 +107,6 @@ with tf.Session() as sess:
             avg_cost = 0
             for i in range(training_size):
                 if trY[i] == 1:
-                    # feed_x = trX[i].flatten()
-                    # _, c = sess.run([optimizer, cost],
-                    #                 feed_dict={X: feed_x,
-                    #                            Y: trY[i],
-                    #                            keep_prob: dropout_prob})
-
                     feed_dict = {X: trX[i], Y: trY[i]}
                     _, c, pred = sess.run([optimizer, cost, prediction],
                                           feed_dict=feed_dict)
@@ -147,7 +149,7 @@ with tf.Session() as sess:
 
             guess_label = 1 if bounds[1] > float(pred) > bounds[0] else -1
 
-            if i % 50 == 0:
+            if i % 50 == 0 and not args.parser_stats:
                 display_str = 'Prediction: {:.10f}\t\tLabel: {}\t\tGuess: {:2}'
                 print(display_str.format(float(pred), teY[i], guess_label))
 
@@ -166,16 +168,19 @@ with tf.Session() as sess:
             else:
                 false_pos_count += 1
 
-        print('Accuracy: {:.2f}%'.format(100 * float(accCount) / testing_size))
+        if args.parser_stats:
+            print('PARSER_STATS_BEGIN')
+
+        print('accuracy={:.2f}'.format(100 * float(accCount) / testing_size))
         if pos_size != 0:
             false_neg_rate = 100 * float(false_neg_count) / pos_size
             avg_pos_cost /= pos_size
-            print('false_neg_rate={}'.format(false_neg_rate))
+            print('false_neg_rate={:.2f}'.format(false_neg_rate))
             print('avg_pos_cost={}'.format(avg_pos_cost))
         if neg_size != 0:
             false_pos_rate = 100 * float(false_pos_count) / neg_size
             avg_neg_cost /= neg_size
-            print('false_pos_rate={}'.format(false_pos_rate))
+            print('false_pos_rate={:.2f}'.format(false_pos_rate))
             print('avg_neg_cost={}'.format(avg_neg_cost))
         print('upper={}'.format(bounds[1]))
         print('lower={}'.format(bounds[0]))
