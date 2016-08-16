@@ -10,8 +10,7 @@ import numpy as np
 import tensorflow as tf
 
 from utils import parse_csv
-
-from MLP import MLP
+from networks import create_network
 
 # Parse Arguments
 parser = argparse.ArgumentParser()
@@ -43,15 +42,7 @@ parser.add_argument('--normalize',
 
 args = parser.parse_args()
 
-# Network parameters
-learning_rate = 0.001
-reg_param = 0.0
-dropout_prob = 1.0
-training_epochs = 4
-display_step = 1
-std_pram = 1.0
 normalize = False if not args.normalize else True
-
 if args.train:
     trX, trY = parse_csv(args.train_file, num_hpc=12, normalize=normalize)
 
@@ -59,45 +50,37 @@ if args.testing:
     teX, teY = parse_csv(args.test_file, num_hpc=12, normalize=normalize)
 
 
+# Network parameters
+learning_rate = 0.001
+reg_param = 0.0
+dropout_prob = 1.0
+training_epochs = 4
+display_step = 1
+std_pram = 1.0
 num_input = len(trX[0][0]) if args.train else len(teX[0][0])
 num_steps = len(trX[0]) if args.train else len(teX[0])
 num_units = 15 if args.num_units == None else args.num_units
-# num_out = num_input
 num_out = 1
-
 training_size = len(trX) if args.train else None
 testing_size = len(teX) if args.testing else None
 
-
-X = tf.placeholder('float', [num_steps, num_input])
-# X = tf.placeholder('float', [num_steps * num_input])
+# Placeholders
+# X = tf.placeholder('float', [num_steps, num_input])
+X = tf.placeholder('float', [num_steps * num_input])
 Y = tf.placeholder('float')
 keep_prob = tf.placeholder('float')
 cost_threshold = tf.Variable([0, 0], dtype=tf.float32)
 
-# define weights
-weights = dict(out=tf.Variable(tf.random_normal([num_units, num_out])))
-biases = dict(out=tf.Variable(tf.random_normal([num_out])))
+# Create Networks
+network_params = {'keep_prob': keep_prob,
+                  'reg_param': reg_param,
+                  'sizes': [num_input * num_steps, 25, 2, 25, num_out],
+                  'activations': [tf.nn.relu, tf.nn.sigmoid, tf.nn.relu, tf.identity]}
 
-# returns an rnn
-def rnn(X, weights, biases):
-    lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(num_units, state_is_tuple=True)
-
-    # split input matrix by time steps
-    input_list = tf.split(0, num_steps, X)
-
-    outputs, states = tf.nn.rnn(lstm_cell, input_list, dtype=tf.float32)
-
-    return tf.matmul(outputs[-1], weights['out']) + biases['out']
-
-
-# Define AutoEncoder
-# ae = MLP([num_input * num_steps, 25, 2, 25, num_input * num_steps],
-#          [tf.nn.relu, tf.nn.sigmoid, tf.nn.relu, tf.identity])
-
-#cost = tf.reduce_mean(tf.square(prediction - Y)) + reg_param * mlp.get_l2_loss()
-prediction = rnn(X, weights, biases)
-cost = tf.reduce_mean(tf.square(prediction - Y))
+model_name = 'MLP'
+network = create_network('MLP', X, Y, network_params)
+prediction = network.create_prediction()
+cost = network.create_cost()
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
 
 init_op = tf.initialize_all_variables()
@@ -112,7 +95,9 @@ with tf.Session() as sess:
             avg_cost = 0
             for i in range(training_size):
                 if trY[i] == 1:
-                    feed_dict = {X: trX[i], Y: trY[i]}
+                    feed_dict = {X: (trX[i]).flatten(),
+                                 Y: trY[i],
+                                 keep_prob: dropout_prob}
                     _, c, pred = sess.run([optimizer, cost, prediction],
                                           feed_dict=feed_dict)
 
@@ -146,7 +131,7 @@ with tf.Session() as sess:
         avg_neg_cost = 0
 
         for i in range(testing_size):
-            feed_x = teX[i]#.flatten()
+            feed_x = teX[i].flatten()
             pred = sess.run(prediction, feed_dict={X: feed_x,
                                                    keep_prob: 1.0})
 
@@ -176,6 +161,7 @@ with tf.Session() as sess:
         if args.parser_stats:
             print('PARSER_STATS_BEGIN')
 
+        print('model_name={}'.format(model_name))
         print('accuracy={:.2f}'.format(100 * float(accCount) / testing_size))
         if pos_size != 0:
             false_neg_rate = 100 * float(false_neg_count) / pos_size
