@@ -2,6 +2,7 @@
     Author: Zander Blasingame """
 
 import argparse
+from random import shuffle
 
 # Parse arguments
 parser = argparse.ArgumentParser()
@@ -23,6 +24,9 @@ parser.add_argument('--even_split',
                     action='store_true',
                     help=('Flag to ensure test set has even number of both '
                           'types of labels'))
+parser.add_argument('--random',
+                    action='store_true',
+                    help='Flag to randomly distrubute positive training entries')
 
 args = parser.parse_args()
 
@@ -40,6 +44,9 @@ num_neg_entries = len(neg_entries)
 total_size = num_pos_entries + num_neg_entries
 max_percent = float(num_pos_entries) / total_size
 training_percentage = max_percent if args.p_train > max_percent else args.p_train
+
+if args.random:
+    shuffle(pos_entries)
 
 training_data = []
 testing_data = []
