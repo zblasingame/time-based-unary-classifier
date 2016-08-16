@@ -19,7 +19,7 @@ class MLP:
     # Method that creates network
     def create_network(self, X, keep_prob):
         def compose_func(a, x, w, b):
-            return a(tf.matmul(x, w) + b) 
+            return a(tf.matmul(x, w) + b)
 
         prev_value = tf.expand_dims(X, 0)
         for i, entry in enumerate(self.network):

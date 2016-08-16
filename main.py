@@ -37,27 +37,32 @@ parser.add_argument('--num_units',
 parser.add_argument('--parser_stats',
                     action='store_true',
                     help='Flag to print results in a parser friendly format')
+parser.add_argument('--normalize',
+                    action='store_true',
+                    help='Flag to normalize input data')
 
 args = parser.parse_args()
 
 # Network parameters
 learning_rate = 0.001
 reg_param = 0.0
-dropout_prob = 1.0 
-training_epochs = 4 
+dropout_prob = 1.0
+training_epochs = 4
 display_step = 1
-std_pram = 1.0 
+std_pram = 1.0
+normalize = False if not args.normalize else True
 
 if args.train:
-    trX, trY = parse_csv(args.train_file, num_hpc=12, normalize=True)
+    trX, trY = parse_csv(args.train_file, num_hpc=12, normalize=normalize)
 
 if args.testing:
-    teX, teY = parse_csv(args.test_file, num_hpc=12, normalize=True)
+    teX, teY = parse_csv(args.test_file, num_hpc=12, normalize=normalize)
 
 
 num_input = len(trX[0][0]) if args.train else len(teX[0][0])
 num_steps = len(trX[0]) if args.train else len(teX[0])
-num_units = 15 if args.num_units == None else args.num_units  
+num_units = 15 if args.num_units == None else args.num_units
+# num_out = num_input
 num_out = 1
 
 training_size = len(trX) if args.train else None
