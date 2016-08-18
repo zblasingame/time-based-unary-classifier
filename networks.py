@@ -87,9 +87,37 @@ class MLP(NeuralNet):
         return self.cost
 
 
+class DenoisingAutoEncoder(MLP):
+    def __init__(self, X, Y, network_params):
+        MLP.__init__(self, X, X, network_params)
+
+
+    def __mlp(self, X, network_params):
+        print('RANNNNNNNNNNNNNNNNNNNNNNNNNNNN')
+        keep_prob = network_params['keep_prob']
+        noise_param = network_params['noise_param']
+
+        def compose_func(a, x, w, b):
+            return a(tf.matmul(x, w) + b)
+
+        prev_value = tf.expand_dims(X, 0)
+        prev_value = tf.nn.dropout(prev_value, noise_param)
+        for i, entry in enumerate(self.model):
+            prev_value = compose_func(entry['activation'],
+                                      prev_value,
+                                      entry['weights'],
+                                      entry['biases'])
+
+            if i != len(self.model) - 1:
+                prev_value = tf.nn.dropout(prev_value, keep_prob)
+
+        return prev_value
+
+
 
 networks_dict = {'LSTM_RNN': LSTM_RNN,
-                 'MLP': MLP}
+                 'MLP': MLP,
+                 'DenoisingAutoEncoder': DenoisingAutoEncoder}
 
 def create_network(type, X, Y, network_params):
     return networks_dict[type](X, Y, network_params)

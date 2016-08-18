@@ -42,7 +42,7 @@ parser.add_argument('--normalize',
 
 args = parser.parse_args()
 
-mode = 'aggergate'
+mode = 'middle'
 
 normalize = False if not args.normalize else True
 if args.train:
@@ -62,7 +62,7 @@ std_pram = 1.0
 num_input = len(trX[0][0]) if args.train else len(teX[0][0])
 num_steps = len(trX[0]) if args.train else len(teX[0])
 num_units = 15 if args.num_units == None else args.num_units
-# num_out = num_input
+# num_out = num_input 
 num_out = 1
 training_size = len(trX) if args.train else None
 testing_size = len(teX) if args.testing else None
@@ -171,7 +171,6 @@ with tf.Session() as sess:
             print('PARSER_STATS_BEGIN')
 
         print('model_name={}'.format(model_name))
-        print('parsing_mode={}'.format(mode))
         print('accuracy={:.2f}'.format(100 * float(accCount) / testing_size))
         if pos_size != 0:
             false_neg_rate = 100 * float(false_neg_count) / pos_size
