@@ -10,8 +10,8 @@ def p(a, b):
     return a + b
 
 parsing_op = {'matrix': lambda x: x,
-              'aggergate': lambda x: list(reduce(lambda a, b: map(p, a, b), x)),
-              'middle': lambda x: x[1]}
+              'aggergate': lambda x: [list(reduce(lambda a, b: map(p,a,b), x))],
+              'middle': lambda x: [x[1]]}
 
 # function parses csv and returns a list of input matrices and output labels
 def parse_csv(filename, num_hpc=12, normalize=True, mode='matrix'):
@@ -41,9 +41,5 @@ def parse_csv(filename, num_hpc=12, normalize=True, mode='matrix'):
                 input_matricies.append(input_matrix/np.linalg.norm(input_matrix))
             else:
                 input_matricies.append(input_matrix)
-
-            print(input_matrix)
-            print(input_matrix)
-
 
     return np.array(input_matricies), np.array(output_labels)
