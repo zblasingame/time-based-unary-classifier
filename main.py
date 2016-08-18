@@ -42,43 +42,52 @@ parser.add_argument('--normalize',
 
 args = parser.parse_args()
 
+mode = 'middle'
+
 normalize = False if not args.normalize else True
 if args.train:
-    trX, trY = parse_csv(args.train_file, num_hpc=12, normalize=normalize)
+    trX, trY = parse_csv(args.train_file, num_hpc=12, normalize=normalize, mode=mode)
 
 if args.testing:
-    teX, teY = parse_csv(args.test_file, num_hpc=12, normalize=normalize)
+    teX, teY = parse_csv(args.test_file, num_hpc=12, normalize=normalize, mode=mode)
 
 
 # Network parameters
 learning_rate = 0.001
-reg_param = 0.0
-dropout_prob = 1.0
+reg_param = 0.01
+dropout_prob = 0.5
 training_epochs = 4
 display_step = 1
 std_pram = 1.0
 num_input = len(trX[0][0]) if args.train else len(teX[0][0])
 num_steps = len(trX[0]) if args.train else len(teX[0])
 num_units = 15 if args.num_units == None else args.num_units
+# num_out = num_input 
 num_out = 1
 training_size = len(trX) if args.train else None
 testing_size = len(teX) if args.testing else None
 
 # Placeholders
-# X = tf.placeholder('float', [num_steps, num_input])
-X = tf.placeholder('float', [num_steps * num_input])
+X = tf.placeholder('float', [num_steps, num_input])
+# X = tf.placeholder('float', [num_steps * num_input])
 Y = tf.placeholder('float')
 keep_prob = tf.placeholder('float')
 cost_threshold = tf.Variable([0, 0], dtype=tf.float32)
 
 # Create Networks
-network_params = {'keep_prob': keep_prob,
-                  'reg_param': reg_param,
-                  'sizes': [num_input * num_steps, 25, 2, 25, num_out],
-                  'activations': [tf.nn.relu, tf.nn.sigmoid, tf.nn.relu, tf.identity]}
+# network_params = {'keep_prob': keep_prob,
+#                   'reg_param': reg_param,
+#                   'sizes': [num_input * num_steps, 250, 4, 250,
+#                             num_input * num_steps],
+#                   'activations': [tf.nn.relu, tf.nn.sigmoid, tf.nn.relu,
+#                                   tf.identity]}
 
-model_name = 'MLP'
-network = create_network('MLP', X, Y, network_params)
+network_params = {'num_units': num_units,
+                  'num_steps': num_steps,
+                  'num_out': num_out}
+
+model_name = 'LSTM RNN'
+network = create_network('LSTM_RNN', X, Y, network_params)
 prediction = network.create_prediction()
 cost = network.create_cost()
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
@@ -95,7 +104,7 @@ with tf.Session() as sess:
             avg_cost = 0
             for i in range(training_size):
                 if trY[i] == 1:
-                    feed_dict = {X: (trX[i]).flatten(),
+                    feed_dict = {X: trX[i],#.flatten(),
                                  Y: trY[i],
                                  keep_prob: dropout_prob}
                     _, c, pred = sess.run([optimizer, cost, prediction],
@@ -131,7 +140,7 @@ with tf.Session() as sess:
         avg_neg_cost = 0
 
         for i in range(testing_size):
-            feed_x = teX[i].flatten()
+            feed_x = teX[i]#.flatten()
             pred = sess.run(prediction, feed_dict={X: feed_x,
                                                    keep_prob: 1.0})
 

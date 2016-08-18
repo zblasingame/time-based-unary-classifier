@@ -2,9 +2,21 @@
     Author: Zander Blasingame """
 
 import numpy as np
+from functools import reduce
+
+VALID_MODES = ['matrix', 'aggergate', 'middle']
+
+def p(a, b):
+    return a + b
+
+parsing_op = {'matrix': lambda x: x,
+              'aggergate': lambda x: list(reduce(lambda a, b: map(p, a, b), x)),
+              'middle': lambda x: x[1]}
 
 # function parses csv and returns a list of input matrices and output labels
-def parse_csv(filename, num_hpc=12, normalize=True):
+def parse_csv(filename, num_hpc=12, normalize=True, mode='matrix'):
+    assert mode in VALID_MODES
+
     input_matricies = []
     output_labels = []
 
@@ -18,19 +30,20 @@ def parse_csv(filename, num_hpc=12, normalize=True):
             output_labels.append(int(entries[0]))
             entries = entries[1:]
 
-            # input_matricies.append([list(map(lambda a: float(a),
-            #                                  entries[i*num_hpc:(i+1)*num_hpc]))
-            #                         for i in range(int(len(entries) / num_hpc))])
-
             input_matrix = [list(map(lambda a: float(a),
                                      entries[i*num_hpc:(i+1)*num_hpc]))
                             for i in range(int(len(entries) / num_hpc))]
+
+            input_matrix = parsing_op[mode](input_matrix) 
 
             # normalize matrix
             if normalize:
                 input_matricies.append(input_matrix/np.linalg.norm(input_matrix))
             else:
                 input_matricies.append(input_matrix)
+
+            print(input_matrix)
+            print(input_matrix)
 
 
     return np.array(input_matricies), np.array(output_labels)

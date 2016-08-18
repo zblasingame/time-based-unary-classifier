@@ -1,4 +1,4 @@
-""" Python script to visualize the effects of the hidden layer size on the
+""" Python script to visualize the effects of the unit layer size on the
     Neural Network.
     Author: Zander Blasingame """
 
@@ -45,7 +45,6 @@ def parse_stats(input_data):
     lines = input_data.split('\n')
     for line in lines:
         if parse and line:
-            print(line)
             name, data = line.split('=')
             entry[name] = data
 
@@ -57,7 +56,7 @@ def parse_stats(input_data):
 
 # Grab the data
 dataset_stats = []
-storage_filename = '{}_stats.pickle'.format(args.dataset)
+storage_filename = '.{}_stats.pickle'.format(args.dataset)
 
 if args.gather_stats:
     train_file = 'data/{}/train.csv'.format(args.dataset)
@@ -68,11 +67,12 @@ if args.gather_stats:
             proc = subprocess.Popen(['python', 'main.py', '--train', '--testing',
                                      '--train_file', train_file,
                                      '--test_file', test_file,
-                                     '--num_hidden', str(i), '--parser_stats'],
+                                     '--num_units', str(i), '--parser_stats',
+                                     '--normalize'],
                                     stdout=subprocess.PIPE)
 
             entry = parse_stats(proc.stdout.read().decode('utf-8'))
-            entry['num_hidden'] = i
+            entry['num_units'] = i
 
             dataset_stats.append(entry)
 
@@ -85,22 +85,22 @@ else:
 
 # Process the data and generate graphs
 
-# Box plot of num_hidden vs accuracy
-num_hiddens = sorted(list(set([entry['num_hidden'] for entry in dataset_stats])))
+# Box plot of num_unit vs accuracy
+num_units = sorted(list(set([entry['num_units'] for entry in dataset_stats])))
 
 colors = ['hsl('+str(h)+',50%, 50%)'
-          for h in np.linspace(0, 360, len(num_hiddens))]
+          for h in np.linspace(0, 360, len(num_units))]
 
 data = [go.Box(x=num,
                y=[entry['accuracy']
-                  for entry in dataset_stats if entry['num_hidden'] == num],
+                  for entry in dataset_stats if entry['num_units'] == num],
                whiskerwidth=0.2,
                marker=dict(color=colors[i]),
                name=str(num))
-        for i, num in enumerate(num_hiddens)]
+        for i, num in enumerate(num_units)]
 
 layout = go.Layout(xaxis=dict(type='linear', showgrid=True,
-                              range=num_hiddens, dtick=5,
+                              range=num_units, dtick=5,
                               title='Number of Units in the LSTM-RNN'),
                    yaxis=dict(zeroline=False,
                               title='Accuracy'),
