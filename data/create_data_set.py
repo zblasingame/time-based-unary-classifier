@@ -53,13 +53,12 @@ testing_data = []
 
 if not args.even_split:
     stop_index = int(training_percentage * num_pos_entries)
-    training_data.extend(pos_entries[:stop_index])
+    training_data.extend(pos_entries[:-stop_index])
     testing_data.extend(pos_entries[-stop_index:])
 else:
     if num_neg_entries > 0.5 * num_pos_entries:
         print('WARNING: too many negative test cases!')
-    
-    training_data.extend(pos_entries[:num_neg_entries])
+    training_data.extend(pos_entries[:-num_neg_entries])
     testing_data.extend(pos_entries[-num_neg_entries:])
 
 testing_data.extend(neg_entries)
