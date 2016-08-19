@@ -62,9 +62,9 @@ if args.gather_stats:
     train_file = 'data/{}/train.csv'.format(args.dataset)
     test_file = 'data/{}/test.csv'.format(args.dataset)
 
-    for i in range(5, 100, 10):
+    for i in np.arange(0, 1.05, 0.05):
         for j in range(10):
-            proc = subprocess.Popen(['python', 'main.py', '--train', '--testing',
+            proc = subprocess.Popen(['python', 'main-sda.py', '--train', '--testing',
                                      '--train_file', train_file,
                                      '--test_file', test_file,
                                      '--num_units', str(i), '--parser_stats',
@@ -101,9 +101,9 @@ data = [go.Box(x=num,
 
 layout = go.Layout(xaxis=dict(type='linear', showgrid=True,
                               range=num_units, dtick=5,
-                              title='Number of Units in the LSTM-RNN'),
+                              title='Noise Parameter'),
                    yaxis=dict(zeroline=False,
                               title='Accuracy'),
-                   title='Number of Units (LSTM-RNN) Vs. Accuracy')
+                   title='Noise (Stacked Denoising AutoEncoder Vs. Accuracy')
 
-make_graph(data=data, layout=layout, filename='{}-acc-box'.format(args.dataset))
+make_graph(data=data, layout=layout, filename='{}-acc-sda-box'.format(args.dataset))

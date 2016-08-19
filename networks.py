@@ -9,10 +9,10 @@ class LSTM_RNN(NeuralNet):
     def __init__(self, X, Y, network_params):
         self.X = X
         self.params = network_params
-        self.prediction = self.__rnn()
+        self.prediction = self._rnn()
         self.cost = tf.reduce_mean(tf.square(self.prediction - Y))
 
-    def __rnn(self):
+    def _rnn(self):
         lstm_cell = tf.nn.rnn_cell.BasicLSTMCell(self.params['num_units'],
                                                  state_is_tuple=True)
 
@@ -36,14 +36,14 @@ class LSTM_RNN(NeuralNet):
 
 class MLP(NeuralNet):
     def __init__(self, X, Y, network_params):
-        self.model = self.__gen_model(network_params)
-        self.prediction = self.__mlp(X, network_params)
+        self.model = self._gen_model(network_params)
+        self.prediction = self._mlp(X, network_params)
 
-        l2_loss = self.__gen_l2_loss()
+        l2_loss = self._gen_l2_loss()
         reg_param = network_params['reg_param']
         self.cost = tf.reduce_mean(tf.square(self.prediction - Y)) + reg_param * l2_loss
 
-    def __gen_model(self,network_params):
+    def _gen_model(self,network_params):
         sizes = network_params['sizes']
         activations = network_params['activations']
 
@@ -56,7 +56,7 @@ class MLP(NeuralNet):
                  'activation': activations[i]}
                 for i in range(len(sizes) - 1)]
 
-    def __mlp(self, X, network_params):
+    def _mlp(self, X, network_params):
         keep_prob = network_params['keep_prob']
 
         def compose_func(a, x, w, b):
@@ -74,7 +74,7 @@ class MLP(NeuralNet):
 
         return prev_value
 
-    def __gen_l2_loss(self):
+    def _gen_l2_loss(self):
         weights = [entry['weights'] for entry in self.model]
         weights += [entry['biases'] for entry in self.model]
 
@@ -89,11 +89,14 @@ class MLP(NeuralNet):
 
 class DenoisingAutoEncoder(MLP):
     def __init__(self, X, Y, network_params):
-        MLP.__init__(self, X, X, network_params)
+        self.model = self._gen_model(network_params)
+        self.prediction = self._mlp(X, network_params)
 
+        l2_loss = self._gen_l2_loss()
+        reg_param = network_params['reg_param']
+        self.cost = tf.reduce_mean(tf.square(self.prediction - Y)) + reg_param * l2_loss
 
-    def __mlp(self, X, network_params):
-        print('RANNNNNNNNNNNNNNNNNNNNNNNNNNNN')
+    def _mlp(self, X, network_params):
         keep_prob = network_params['keep_prob']
         noise_param = network_params['noise_param']
 

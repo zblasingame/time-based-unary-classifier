@@ -53,9 +53,9 @@ if args.testing:
 
 # Network parameters
 learning_rate = 0.001
-reg_param = 0.01
-noise_param_value = 0.75
-dropout_prob = 0.5
+reg_param = 0.0
+noise_param_value = 1.0 
+dropout_prob = 1.0
 training_epochs = 4
 display_step = 1
 std_pram = 1.0
@@ -69,13 +69,14 @@ testing_size = len(teX) if args.testing else None
 # Placeholders
 X = tf.placeholder('float', [num_input])
 Z = tf.placeholder('float', [num_input * num_steps])
+Z_auto = tf.placeholder('float', [num_input * num_steps])
 Y = tf.placeholder('float')
 keep_prob = tf.placeholder('float')
 noise_param = tf.placeholder('float')
 cost_threshold = tf.Variable([0, 0], dtype=tf.float32)
 
 # Create Networks
-model_name = 'Stacked Denosing AutoEncoder'
+model_name = 'Stacked Denoising AutoEncoder'
 
 # Create an Denoising AE for each time step
 compression_layer = []
@@ -83,12 +84,8 @@ for i in range(num_steps):
     network_params = {'keep_prob': keep_prob,
                       'reg_param': reg_param,
                       'noise_param': noise_param,
-                      'sizes': [num_input, 50,
-                                4, 50, num_input],
-                       'activations': [tf.nn.relu,
-                                       tf.nn.sigmoid,
-                                       tf.nn.relu,
-                                       tf.identity]}
+                      'sizes': [num_input, num_units, num_input],
+                      'activations': [tf.nn.sigmoid, tf.identity]}
 
     network = create_network('DenoisingAutoEncoder', X, X, network_params)
 
@@ -108,14 +105,10 @@ for i in range(num_steps):
 network_params={'keep_prob': keep_prob,
                 'reg_param': reg_param,
                 'noise_param': noise_param,
-                'sizes': [num_steps * num_input, 50,
-                          4, 50, num_steps * num_input],
-                'activations': [tf.nn.relu,
-                                tf.nn.sigmoid,
-                                tf.nn.relu,
-                                tf.identity]}
+                'sizes': [num_steps*num_input, num_units, num_steps*num_input],
+                'activations': [tf.nn.sigmoid, tf.identity]}
 
-network = create_network('DenoisingAutoEncoder', Z, Z, network_params)
+network = create_network('DenoisingAutoEncoder', Z, Z_auto, network_params)
 
 prediction = network.create_prediction()
 cost = network.create_cost()
@@ -160,6 +153,7 @@ with tf.Session() as sess:
                                                      keep_prob: 1.0,
                                                      noise_param: 1.0})
                                  for j in range(num_steps)]).flatten(),
+                             Z_auto: trX[i].flatten(),
                              keep_prob: dropout_prob,
                              noise_param: noise_param_value}
 
@@ -197,32 +191,33 @@ with tf.Session() as sess:
         avg_pos_cost = 0
         avg_neg_cost = 0
 
+        bounds = cost_threshold.eval()
+
         for i in range(testing_size):
             feed_dict = {Z: np.array([sess.run(
                                       compression_layer[j]['prediction'],
-                                      feed_dict={X: trX[i][j],
+                                      feed_dict={X: teX[i][j],
                                                  keep_prob: 1.0,
                                                  noise_param: 1.0})
                              for j in range(num_steps)]).flatten(),
+                         Z_auto: teX[i].flatten(),
                          keep_prob: 1.0,
                          noise_param: 1.0}
 
-            cost = sess.run(cost, feed_dict=feed_dict)
+            cost_val = sess.run(cost, feed_dict=feed_dict)
 
-            bounds = cost_threshold.eval()
-
-            guess_label = 1 if bounds[1] > float(cost) > bounds[0] else -1
+            guess_label = 1 if bounds[1] > float(cost_val) > bounds[0] else -1
 
             if i % 50 == 0 and not args.parser_stats:
                 display_str = 'Prediction: {:.10f}\t\tLabel: {}\t\tGuess: {:2}'
-                print(display_str.format(float(cost), teY[i], guess_label))
+                print(display_str.format(float(cost_val), teY[i], guess_label))
 
             if teY[i] == 1:
                 pos_size += 1
-                avg_pos_cost += float(cost)
+                avg_pos_cost += float(cost_val)
             else:
                 neg_size += 1
-                avg_neg_cost += float(cost)
+                avg_neg_cost += float(cost_val)
 
 
             if guess_label == teY[i]:
