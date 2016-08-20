@@ -42,7 +42,7 @@ parser.add_argument('--normalize',
 
 args = parser.parse_args()
 
-mode = 'middle'
+mode = 'matrix'
 
 normalize = False if not args.normalize else True
 if args.train:

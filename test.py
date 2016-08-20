@@ -2,7 +2,6 @@
     Neural Network.
     Author: Zander Blasingame """
 
-import os
 import argparse
 import subprocess
 import pickle
