@@ -53,12 +53,12 @@ def parse_stats(input_data):
 # Grab the data
 dataset_stats = []
 storage_filename = '.sda_stats.pickle'
+dataset = 'rootdir'
 
 if args.gather_stats:
     num_units = '50'
 
-    for i in range(20):
-        dataset = 'keyleak_random' if i % 2 == 0 else 'rootdir_random'
+    for i in range(10):
         train_file = 'data/{}/train.csv'.format(dataset)
         test_file = 'data/{}/test.csv'.format(dataset)
 
@@ -83,20 +83,22 @@ else:
 
 # Process the data and generate graphs
 x = [float(entry['accuracy']) for entry in dataset_stats]
-x_0 = [float(entry['accuracy'])
-       for entry in dataset_stats if entry['dataset'] == 'keyleak_random']
-x_1 = [float(entry['accuracy'])
-       for entry in dataset_stats if entry['dataset'] == 'rootdir_random']
+# x_0 = [float(entry['accuracy'])
+#        for entry in dataset_stats if entry['dataset'] == 'keyleak_random']
+# x_1 = [float(entry['accuracy'])
+#        for entry in dataset_stats if entry['dataset'] == 'rootdir_random']
 
 legendStr = '$\\text{{{0:25s}}}\\mu={1:.5f}, \\sigma={2:.5f}$'
 
-data = [go.Box(x=x, name=legendStr.format('both', np.mean(x), np.std(x))),
-        go.Box(x=x_0, name=legendStr.format('keyleak',
-                                            np.mean(x_0), np.std(x_0))),
-        go.Box(x=x_1, name=legendStr.format('rootdir',
-                                            np.mean(x_1), np.std(x_1)))]
+print(x)
+
+data = [go.Box(x=x, name=legendStr.format('rootdir', np.mean(x), np.std(x)))]
+        # go.Box(x=x_0, name=legendStr.format('keyleak',
+        #                                     np.mean(x_0), np.std(x_0))),
+        # go.Box(x=x_1, name=legendStr.format('rootdir',
+        #                                     np.mean(x_1), np.std(x_1)))]
 
 layout = go.Layout(xaxis=dict(title='Accuracy'),
                    title='Accuracy Distribution for the Stacked AutoEncoder')
 
-make_graph(data=data, layout=layout, filename='sda-acc-box')
+make_graph(data=data, layout=layout, filename='sda-acc-rootdir-box')

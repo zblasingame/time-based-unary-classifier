@@ -39,10 +39,14 @@ parser.add_argument('--parser_stats',
 parser.add_argument('--normalize',
                     action='store_true',
                     help='Flag to normalize input data')
+parser.add_argument('--mode',
+                    type=str,
+                    default='matrix',
+                    help='Following input modes: matrix, middle, aggergate')
 
 args = parser.parse_args()
 
-mode = 'matrix'
+mode = args.mode
 
 normalize = False if not args.normalize else True
 if args.train:
@@ -62,7 +66,6 @@ std_pram = 1.0
 num_input = len(trX[0][0]) if args.train else len(teX[0][0])
 num_steps = len(trX[0]) if args.train else len(teX[0])
 num_units = 15 if args.num_units == None else args.num_units
-# num_out = num_input 
 num_out = 1
 training_size = len(trX) if args.train else None
 testing_size = len(teX) if args.testing else None

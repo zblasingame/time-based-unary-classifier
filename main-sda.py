@@ -38,10 +38,14 @@ parser.add_argument('--parser_stats',
 parser.add_argument('--normalize',
                     action='store_true',
                     help='Flag to normalize input data')
+parser.add_argument('--mode',
+                    type=str,
+                    default='matrix',
+                    help='Type of input mode')
 
 args = parser.parse_args()
 
-mode = 'matrix'
+mode = args.mode
 
 normalize = False if not args.normalize else True
 if args.train:
@@ -54,7 +58,7 @@ if args.testing:
 # Network parameters
 learning_rate = 0.001
 reg_param = 0.0
-noise_param_value = 1.0 
+noise_param_value = 1.0
 dropout_prob = 1.0
 training_epochs = 4
 display_step = 1
