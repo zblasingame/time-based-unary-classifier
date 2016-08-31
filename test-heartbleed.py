@@ -2,6 +2,7 @@
     Author: Zander Blasingame """
 
 import argparse
+import os
 import subprocess
 import pickle
 import numpy as np
@@ -51,31 +52,33 @@ def parse_stats(input_data):
 
 # Grab the data
 dataset_stats = []
-storage_filename = '.lstm_stats.pickle'
+storage_filename = '.heartbled_sda_stats.pickle'
 
-datasets = ['keyleak', 'rootdir']
-modes = ['matrix', 'middle', 'aggergate']
+datasets = [f for f in os.listdir('./data/heartbleed/') if f != 'train.csv']
+mode = 'matrix'
 
 if args.gather_stats:
     for dataset in datasets:
-        train_file = 'data/{}/train.csv'.format(dataset)
-        test_file = 'data/{}/test.csv'.format(dataset)
-        for mode in modes:
-            for i in range(10):
-                proc = subprocess.Popen(['python', 'main.py',
-                                         '--train', '--testing',
-                                         '--train_file', train_file,
-                                         '--test_file', test_file,
-                                         '--num_units', '45', '--parser_stats',
-                                         '--normalize',
-                                         '--mode', mode],
-                                        stdout=subprocess.PIPE)
+        train_file = 'data/heartbleed/train.csv'
+        test_file = 'data/heartbleed/{}'.format(dataset)
+        for i in range(10):
+            print(test_file)
+            proc = subprocess.Popen(['python', 'main-sda.py',
+                                     '--train', '--testing',
+                                     '--train_file', train_file,
+                                     '--test_file', test_file,
+                                     '--num_units', '2', '--parser_stats',
+                                     '--normalize',
+                                     '--mode', mode,
+                                     '--debug',
+                                     '--hpc', '4'],
+                                    stdout=subprocess.PIPE)
 
-                entry = parse_stats(proc.stdout.read().decode('utf-8'))
-                entry['dataset'] = dataset
-                entry['mode'] = mode
+            entry = parse_stats(proc.stdout.read().decode('utf-8'))
+            entry['dataset'] = dataset
+            entry['mode'] = mode
 
-                dataset_stats.append(entry)
+            dataset_stats.append(entry)
 
     with open(storage_filename, 'wb') as f:
         pickle.dump(dataset_stats, f)
@@ -86,34 +89,32 @@ else:
 
 # Process the data and generate graphs
 
-# LSTM Visualizations
 parsed_data = []
 
 for dataset in datasets:
-    for mode in modes:
-        arr = []
-        for entry in dataset_stats:
-            if entry['mode'] == mode and entry['dataset'] == dataset:
-                arr.append(float(entry['accuracy']))
+    arr = []
+    for entry in dataset_stats:
+        print(entry)
+        if entry['dataset'] == dataset and 'accuracy' in entry.keys():
+            arr.append(float(entry['accuracy']))
 
-        parsed_data.append(dict(dataset=dataset, mode=mode, arr=arr,
-                                stddev=np.std(arr), mean=np.mean(arr)))
+    parsed_data.append(dict(dataset=dataset, arr=arr,
+                            stddev=np.std(arr), mean=np.mean(arr)))
 
-name_str = '$\\mu={:.3f}, \\sigma={:.3f}$'
+name_str = '\\mu={:.3f}, \\sigma={:.3f}$'
 
 data = [go.Box(x=entry['arr'],
                whiskerwidth=0.2,
-               name='{}, {}: {}'.format(entry['mode'],
-                                        entry['dataset'],
+               name='$\\text{{{}}}: {}'.format(entry['dataset'],
                                         name_str.format(entry['mean'],
                                                         entry['stddev'])))
        for entry in parsed_data]
 
 layout = go.Layout(xaxis=dict(title='Accuracy'),
                    yaxis=dict(zeroline=False),
-                   title='Accuracy Distribution LSTM-RNN')
+                   title='Accuracy Distribution SDA')
 
-make_graph(data=data, layout=layout, filename='lstm-acc-box')
+make_graph(data=data, layout=layout, filename='heartbleed-acc-box')
 
 for entry in parsed_data:
     print(entry)

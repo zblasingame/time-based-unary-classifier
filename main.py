@@ -42,7 +42,7 @@ parser.add_argument('--normalize',
 parser.add_argument('--mode',
                     type=str,
                     default='matrix',
-                    help='Following input modes: matrix, middle, aggergate')
+                    help='Following input modes: matrix, middle, aggregate')
 
 args = parser.parse_args()
 

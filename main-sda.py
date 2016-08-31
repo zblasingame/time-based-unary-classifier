@@ -42,17 +42,32 @@ parser.add_argument('--mode',
                     type=str,
                     default='matrix',
                     help='Type of input mode')
+parser.add_argument('--hpc',
+                    type=int,
+                    default=12,
+                    help='How many perfomance indicators in the dataset')
+parser.add_argument('--debug',
+                    action='store_true',
+                    help='Flag to debug program')
 
 args = parser.parse_args()
 
 mode = args.mode
 
+# helper function
+def debug(msg):
+    if args.debug:
+        print('DEBUG: {}'.format(msg))
+
+
 normalize = False if not args.normalize else True
 if args.train:
-    trX, trY = parse_csv(args.train_file, num_hpc=12, normalize=normalize, mode=mode)
+    trX, trY = parse_csv(args.train_file, num_hpc=args.hpc,
+                         normalize=normalize, mode=mode)
 
 if args.testing:
-    teX, teY = parse_csv(args.test_file, num_hpc=12, normalize=normalize, mode=mode)
+    teX, teY = parse_csv(args.test_file, num_hpc=args.hpc,
+                         normalize=normalize, mode=mode)
 
 
 # Network parameters
@@ -138,6 +153,8 @@ with tf.Session() as sess:
                     _, c = sess.run([compression_layer[j]['optimizer'],
                                      compression_layer[j]['cost']],
                                     feed_dict=feed_dict)
+
+                    debug('cost: {}'.format(c))
 
                     avg_cost += c / training_size
 

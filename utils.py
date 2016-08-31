@@ -4,13 +4,13 @@
 import numpy as np
 from functools import reduce
 
-VALID_MODES = ['matrix', 'aggergate', 'middle']
+VALID_MODES = ['matrix', 'aggregate', 'middle']
 
 def p(a, b):
     return a + b
 
 parsing_op = {'matrix': lambda x: x,
-              'aggergate': lambda x: [list(reduce(lambda a, b: map(p,a,b), x))],
+              'aggregate': lambda x: [list(reduce(lambda a, b: map(p,a,b), x))],
               'middle': lambda x: [x[1]]}
 
 # function parses csv and returns a list of input matrices and output labels
@@ -34,7 +34,7 @@ def parse_csv(filename, num_hpc=12, normalize=True, mode='matrix'):
                                      entries[i*num_hpc:(i+1)*num_hpc]))
                             for i in range(int(len(entries) / num_hpc))]
 
-            input_matrix = parsing_op[mode](input_matrix) 
+            input_matrix = parsing_op[mode](input_matrix)
 
             # normalize matrix
             if normalize:

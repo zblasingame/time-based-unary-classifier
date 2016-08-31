@@ -1,5 +1,4 @@
-""" Python script to visualize the effects of the unit layer size on the
-    Neural Network.
+""" Python script to visualize the effects of the input methodology
     Author: Zander Blasingame """
 
 import argparse
@@ -52,27 +51,32 @@ def parse_stats(input_data):
 
 # Grab the data
 dataset_stats = []
-storage_filename = '.sda_stats.pickle'
-dataset = 'rootdir'
+storage_filename = '.new_sda_stats.pickle'
+
+datasets = ['keyleak', 'rootdir']
+# not including matrix to save time
+modes = ['middle', 'aggergate']
 
 if args.gather_stats:
-    num_units = '50'
-
-    for i in range(10):
+    for dataset in datasets:
         train_file = 'data/{}/train.csv'.format(dataset)
         test_file = 'data/{}/test.csv'.format(dataset)
+        for mode in modes:
+            for i in range(10):
+                proc = subprocess.Popen(['python', 'main-sda.py',
+                                         '--train', '--testing',
+                                         '--train_file', train_file,
+                                         '--test_file', test_file,
+                                         '--num_units', '2', '--parser_stats',
+                                         '--normalize',
+                                         '--mode', mode],
+                                        stdout=subprocess.PIPE)
 
-        proc = subprocess.Popen(['python', 'main-sda.py', '--train', '--testing',
-                                 '--train_file', train_file,
-                                 '--test_file', test_file,
-                                 '--num_units', num_units, '--parser_stats',
-                                 '--normalize'],
-                                stdout=subprocess.PIPE)
+                entry = parse_stats(proc.stdout.read().decode('utf-8'))
+                entry['dataset'] = dataset
+                entry['mode'] = mode
 
-        entry = parse_stats(proc.stdout.read().decode('utf-8'))
-        entry['dataset'] = dataset
-
-        dataset_stats.append(entry)
+                dataset_stats.append(entry)
 
     with open(storage_filename, 'wb') as f:
         pickle.dump(dataset_stats, f)
@@ -82,23 +86,35 @@ else:
         dataset_stats = pickle.load(f)
 
 # Process the data and generate graphs
-x = [float(entry['accuracy']) for entry in dataset_stats]
-# x_0 = [float(entry['accuracy'])
-#        for entry in dataset_stats if entry['dataset'] == 'keyleak_random']
-# x_1 = [float(entry['accuracy'])
-#        for entry in dataset_stats if entry['dataset'] == 'rootdir_random']
 
-legendStr = '$\\text{{{0:25s}}}\\mu={1:.5f}, \\sigma={2:.5f}$'
+# LSTM Visualizations
+parsed_data = []
 
-print(x)
+for dataset in datasets:
+    for mode in modes:
+        arr = []
+        for entry in dataset_stats:
+            if entry['mode'] == mode and entry['dataset'] == dataset:
+                arr.append(float(entry['accuracy']))
 
-data = [go.Box(x=x, name=legendStr.format('rootdir', np.mean(x), np.std(x)))]
-        # go.Box(x=x_0, name=legendStr.format('keyleak',
-        #                                     np.mean(x_0), np.std(x_0))),
-        # go.Box(x=x_1, name=legendStr.format('rootdir',
-        #                                     np.mean(x_1), np.std(x_1)))]
+        parsed_data.append(dict(dataset=dataset, mode=mode, arr=arr,
+                                stddev=np.std(arr), mean=np.mean(arr)))
+
+name_str = '\\mu={:.3f}, \\sigma={:.3f}$'
+
+data = [go.Box(x=entry['arr'],
+               whiskerwidth=0.2,
+               name='$\\text{{{}, {}}}: {}'.format(entry['mode'],
+                                        entry['dataset'],
+                                        name_str.format(entry['mean'],
+                                                        entry['stddev'])))
+       for entry in parsed_data]
 
 layout = go.Layout(xaxis=dict(title='Accuracy'),
-                   title='Accuracy Distribution for the Stacked AutoEncoder')
+                   yaxis=dict(zeroline=False),
+                   title='Accuracy Distribution SDA')
 
-make_graph(data=data, layout=layout, filename='sda-acc-rootdir-box')
+make_graph(data=data, layout=layout, filename='sda-1-2-acc-box')
+
+for entry in parsed_data:
+    print(entry)

@@ -2,6 +2,7 @@
     Author: Zander Blasingame """
 
 import argparse
+import os
 import subprocess
 import pickle
 import numpy as np
@@ -51,31 +52,31 @@ def parse_stats(input_data):
 
 # Grab the data
 dataset_stats = []
-storage_filename = '.lstm_stats.pickle'
+storage_filename = '.freak_sda_stats.pickle'
 
-datasets = ['keyleak', 'rootdir']
-modes = ['matrix', 'middle', 'aggergate']
+datasets = [f for f in os.listdir('./data/freak/') if f != 'train.csv']
+mode = 'matrix'
 
 if args.gather_stats:
     for dataset in datasets:
-        train_file = 'data/{}/train.csv'.format(dataset)
-        test_file = 'data/{}/test.csv'.format(dataset)
-        for mode in modes:
-            for i in range(10):
-                proc = subprocess.Popen(['python', 'main.py',
-                                         '--train', '--testing',
-                                         '--train_file', train_file,
-                                         '--test_file', test_file,
-                                         '--num_units', '45', '--parser_stats',
-                                         '--normalize',
-                                         '--mode', mode],
-                                        stdout=subprocess.PIPE)
+        train_file = 'data/freak/train.csv'
+        test_file = 'data/freak/{}'.format(dataset)
+        for i in range(10):
+            proc = subprocess.Popen(['python', 'main-sda.py',
+                                     '--train', '--testing',
+                                     '--train_file', train_file,
+                                     '--test_file', test_file,
+                                     '--num_units', '2', '--parser_stats',
+                                     '--normalize',
+                                     '--mode', mode,
+                                     '--hpc', '12'],
+                                    stdout=subprocess.PIPE)
 
-                entry = parse_stats(proc.stdout.read().decode('utf-8'))
-                entry['dataset'] = dataset
-                entry['mode'] = mode
+            entry = parse_stats(proc.stdout.read().decode('utf-8'))
+            entry['dataset'] = dataset
+            entry['mode'] = mode
 
-                dataset_stats.append(entry)
+            dataset_stats.append(entry)
 
     with open(storage_filename, 'wb') as f:
         pickle.dump(dataset_stats, f)
@@ -86,24 +87,22 @@ else:
 
 # Process the data and generate graphs
 
-# LSTM Visualizations
 parsed_data = []
 
 for dataset in datasets:
-    for mode in modes:
-        arr = []
-        for entry in dataset_stats:
-            if entry['mode'] == mode and entry['dataset'] == dataset:
-                arr.append(float(entry['accuracy']))
+    arr = []
+    for entry in dataset_stats:
+        if entry['mode'] == mode and entry['dataset'] == dataset:
+            arr.append(float(entry['accuracy']))
 
-        parsed_data.append(dict(dataset=dataset, mode=mode, arr=arr,
+    parsed_data.append(dict(dataset=dataset, mode=mode, arr=arr,
                                 stddev=np.std(arr), mean=np.mean(arr)))
 
-name_str = '$\\mu={:.3f}, \\sigma={:.3f}$'
+name_str = '\\mu={:.3f}, \\sigma={:.3f}$'
 
 data = [go.Box(x=entry['arr'],
                whiskerwidth=0.2,
-               name='{}, {}: {}'.format(entry['mode'],
+               name='$\\text{{{}, {}}}: {}'.format(entry['mode'],
                                         entry['dataset'],
                                         name_str.format(entry['mean'],
                                                         entry['stddev'])))
@@ -111,9 +110,9 @@ data = [go.Box(x=entry['arr'],
 
 layout = go.Layout(xaxis=dict(title='Accuracy'),
                    yaxis=dict(zeroline=False),
-                   title='Accuracy Distribution LSTM-RNN')
+                   title='Accuracy Distribution SDA')
 
-make_graph(data=data, layout=layout, filename='lstm-acc-box')
+make_graph(data=data, layout=layout, filename='sda-freak-acc-box')
 
 for entry in parsed_data:
     print(entry)
