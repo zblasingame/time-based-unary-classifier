@@ -125,7 +125,7 @@ for i in range(num_steps):
 
         compression_layer.append(denoisingAE)
 
-with tf.devicei('/gpu:0'):
+with tf.device('/gpu:0'):
     network_params = {'keep_prob': keep_prob,
                       'reg_param': reg_param,
                       'noise_param': noise_param,
