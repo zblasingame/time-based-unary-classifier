@@ -4,7 +4,6 @@
     Documentation: Enter `python main-sda.py --help` """
 
 import argparse
-import sys
 import numpy as np
 import tensorflow as tf
 
@@ -27,7 +26,7 @@ parser.add_argument('--train_file',
                     help='Location of training file')
 parser.add_argument('--test_file',
                     type=str,
-                    help='Location of testing file');
+                    help='Location of testing file')
 parser.add_argument('--num_units',
                     type=int,
                     default=None,
@@ -53,6 +52,7 @@ parser.add_argument('--debug',
 args = parser.parse_args()
 
 mode = args.mode
+
 
 # helper function
 def debug(msg):
@@ -80,7 +80,7 @@ display_step = 1
 std_pram = 1.0
 num_input = len(trX[0][0]) if args.train else len(teX[0][0])
 num_steps = len(trX[0]) if args.train else len(teX[0])
-num_units = 15 if args.num_units == None else args.num_units
+num_units = 15 if args.num_units is None else args.num_units
 num_out = num_input
 training_size = len(trX) if args.train else None
 testing_size = len(teX) if args.testing else None
@@ -151,7 +151,7 @@ config.gpu_options.allow_growth = True
 config.log_device_placement = True
 
 with tf.Session(config=config) as sess:
-    sess.run(init_op) if args.train else saver.restore(sess, 'model.ckpt')
+    sess.run(init_op) if args.train else saver.restore(sess, './model.ckpt')
 
     if args.train:
         # Train compression layer
@@ -186,14 +186,14 @@ with tf.Session(config=config) as sess:
                                           feed_dict={X: trX[i][j],
                                                      keep_prob: 1.0,
                                                      noise_param: 1.0})
-                                 for j in range(num_steps)]).flatten(),
+                             for j in range(num_steps)]).flatten(),
                              Z_auto: trX[i].flatten(),
                              keep_prob: dropout_prob,
                              noise_param: noise_param_value}
 
                 _, c = sess.run([optimizer,
                                  cost],
-                                 feed_dict=feed_dict)
+                                feed_dict=feed_dict)
 
                 avg_cost += c / training_size
 
@@ -202,17 +202,16 @@ with tf.Session(config=config) as sess:
 
             if i % display_step == 0:
                 print('General Epoch: {0:03} with cost={1:.9f}'.format(epoch+1,
-                                                               avg_cost))
-
+                      avg_cost))
 
         # calculate cost threshold
         sess.run(cost_threshold.assign([np.mean(costs)-std_pram*np.std(costs),
-                                        np.mean(costs)+std_pram*np.std(costs)]))
+                 np.mean(costs)+std_pram*np.std(costs)]))
 
         print('Optimization Finished')
 
         # save model
-        save_path = saver.save(sess, 'model.ckpt')
+        save_path = saver.save(sess, './model.ckpt')
         print('Model saved in file: {}'.format(save_path))
 
     if args.testing:
@@ -233,7 +232,7 @@ with tf.Session(config=config) as sess:
                                       feed_dict={X: teX[i][j],
                                                  keep_prob: 1.0,
                                                  noise_param: 1.0})
-                             for j in range(num_steps)]).flatten(),
+                         for j in range(num_steps)]).flatten(),
                          Z_auto: teX[i].flatten(),
                          keep_prob: 1.0,
                          noise_param: 1.0}
@@ -252,7 +251,6 @@ with tf.Session(config=config) as sess:
             else:
                 neg_size += 1
                 avg_neg_cost += float(cost_val)
-
 
             if guess_label == teY[i]:
                 accCount += 1
