@@ -97,50 +97,58 @@ cost_threshold = tf.Variable([0, 0], dtype=tf.float32)
 # Create Networks
 model_name = 'Stacked Denoising AutoEncoder'
 
+gpu_id = 0
+
 # Create an Denoising AE for each time step
 compression_layer = []
 for i in range(num_steps):
+    # alternate GPU assignment
+    gpu_id = 0 if i % 2 == 0 else 1
+    with tf.device('/gpu:{}'.format(gpu_id)):
+        network_params = {'keep_prob': keep_prob,
+                          'reg_param': reg_param,
+                          'noise_param': noise_param,
+                          'sizes': [num_input, num_units, num_input],
+                          'activations': [tf.nn.sigmoid, tf.identity]}
+
+        network = create_network('DenoisingAutoEncoder', X, X, network_params)
+
+        prediction = network.create_prediction()
+        cost = network.create_cost()
+        optimizer = tf.train.AdamOptimizer(
+                    learning_rate=learning_rate).minimize(cost)
+
+        denoisingAE = dict(prediction=prediction,
+                           cost=cost,
+                           name='in_layer_denoising_ae_{}'.format(i+1),
+                           optimizer=optimizer)
+
+        compression_layer.append(denoisingAE)
+
+with tf.devicei('/gpu:0'):
     network_params = {'keep_prob': keep_prob,
                       'reg_param': reg_param,
                       'noise_param': noise_param,
-                      'sizes': [num_input, num_units, num_input],
+                      'sizes': [num_steps*num_input, num_units,
+                                num_steps*num_input],
                       'activations': [tf.nn.sigmoid, tf.identity]}
 
-    network = create_network('DenoisingAutoEncoder', X, X, network_params)
+    network = create_network('DenoisingAutoEncoder',
+                             Z, Z_auto, network_params)
 
     prediction = network.create_prediction()
     cost = network.create_cost()
+    name = 'denoising_ae'
     optimizer = tf.train.AdamOptimizer(
                 learning_rate=learning_rate).minimize(cost)
-
-    denoisingAE = dict(prediction=prediction,
-                       cost=cost,
-                       name='compression_layer_denoising_ae_{}'.format(i+1),
-                       optimizer=optimizer)
-
-    compression_layer.append(denoisingAE)
-
-
-network_params={'keep_prob': keep_prob,
-                'reg_param': reg_param,
-                'noise_param': noise_param,
-                'sizes': [num_steps*num_input, num_units, num_steps*num_input],
-                'activations': [tf.nn.sigmoid, tf.identity]}
-
-network = create_network('DenoisingAutoEncoder', Z, Z_auto, network_params)
-
-prediction = network.create_prediction()
-cost = network.create_cost()
-name = 'denoising_ae'
-optimizer=tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
 
 init_op = tf.initialize_all_variables()
 saver = tf.train.Saver()
 
 # config
 config = tf.ConfigProto()
-# config.gpu_options.allow_growth = True
-# config.log_device_placement = True
+config.gpu_options.allow_growth = True
+config.log_device_placement = True
 
 with tf.Session(config=config) as sess:
     sess.run(init_op) if args.train else saver.restore(sess, 'model.ckpt')
