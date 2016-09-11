@@ -58,19 +58,28 @@ datasets = [f for f in os.listdir('./data/heartbleed/') if f != 'train.csv']
 mode = 'matrix'
 
 if args.gather_stats:
-    for dataset in datasets:
+    for i in range(10):
         train_file = 'data/heartbleed/train.csv'
-        test_file = 'data/heartbleed/{}'.format(dataset)
-        for i in range(10):
+
+        # train network
+        subprocess.call(['python3', 'main-sda-gpu.py',
+                         '--train',
+                         '--train_file', train_file,
+                         '--num_units', '2',
+                         '--parser_stats', '--normalize',
+                         '--mode', mode,
+                         '--hpc', '4'])
+
+        # evaluate the datasets
+        for dataset in datasets:
+            test_file = 'data/heartbleed/{}'.format(dataset)
             print(test_file)
-            proc = subprocess.Popen(['python', 'main-sda.py',
-                                     '--train', '--testing',
-                                     '--train_file', train_file,
+            proc = subprocess.Popen(['python3', 'main-sda-gpu.py',
+                                     '--testing',
                                      '--test_file', test_file,
                                      '--num_units', '2', '--parser_stats',
                                      '--normalize',
                                      '--mode', mode,
-                                     '--debug',
                                      '--hpc', '4'],
                                     stdout=subprocess.PIPE)
 
