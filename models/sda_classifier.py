@@ -28,17 +28,17 @@ class Classifier:
             Size of the mini batch.
         num_epochs (int = 10):
             Number of training epochs
-        display (bool = False):
+        debug (bool = False):
             Flag to print the output.
         normalize (bool = False):
             Flag to determine if the input data is normalized.
         display_step (int = 1):
-            How often to display epoch data.
+            How often to debug epoch data.
         std_param (int = 5):
             Value of the threshold constant for calculating the threshold.
     """
     def __init__(self, num_input=4, num_units=10, num_steps=3,
-                 batch_size=100, num_epochs=10, display=False,
+                 batch_size=100, num_epochs=10, debug=False,
                  normalize=False, display_step=1, std_param=5):
         """Init classifier"""
 
@@ -52,7 +52,7 @@ class Classifier:
         self.std_param          = std_param
         self.training_epochs    = num_epochs
         self.display_step       = display_step
-        self.display            = display
+        self.debug              = debug
         self.normalize          = normalize
         self.num_input          = num_input
         self.num_steps          = num_steps
@@ -372,7 +372,7 @@ class Classifier:
     def print(self, msg):
         """Internal function for printing"""
 
-        if self.display:
+        if self.debug:
             print(msg)
 
 
@@ -449,7 +449,7 @@ if __name__ == '__main__':
     num_input = X.shape[0]
 
     classifier = Classifier(num_input, 10, 3, args.batch_size, args.epochs,
-                            display=True, normalize=args.normalize)
+                            debug=True, normalize=args.normalize)
 
     if args.train_file:
         classifier.train(args.train_file)
