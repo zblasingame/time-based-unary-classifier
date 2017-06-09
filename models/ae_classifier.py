@@ -1,4 +1,5 @@
-"""Trains and tests a SDA classifier
+"""Class for the training and testing of an autoencoder
+based classifier.
 
 Author:         Zander Blasingame
 Institution:    Clarkson University
@@ -15,30 +16,33 @@ from models.NeuralNet import NeuralNet
 
 
 class Classifier:
-    """Unary time-series classifier using a SDA model
+    """Unary classifier to detect anomalous behavior.
 
     Args:
-        num_input (int = 4):
-            Number of inputs for each time series step.
-        num_units (int = 10):
-            Number of hiddent units.
-        num_steps (int = 3):
-            Number of time series steps.
+        num_input (int):
+            Number of input for classifier.
         batch_size (int = 100):
-            Size of the mini batch.
+            Batch size.
         num_epochs (int = 10):
-            Number of training epochs
+            Number of training epochs.
         debug (bool = False):
-            Flag to print the output.
+            Flag to print output.
+        blacklist (list = []):
+            List of features to ignore.
+            Cannot be used if whitelist is being used.
+        whitelist (list = []):
+            List of features to use.
+            Cannot be used if blacklist is being used.
         normalize (bool = False):
-            Flag to determine if the input data is normalized.
+            Flag to determine if data is normalized.
         display_step (int = 1):
-            How often to debug epoch data.
+            How often to debug epoch data during training.
         std_param (int = 5):
             Value of the threshold constant for calculating the threshold.
     """
-    def __init__(self, num_input=4, num_units=10, num_steps=3,
-                 batch_size=100, num_epochs=10, debug=False,
+
+    def __init__(self, num_input, batch_size=100, num_epochs=10,
+                 debug=False, blacklist=[], whitelist=[],
                  normalize=False, display_step=1, std_param=5):
         """Init classifier"""
 
@@ -52,11 +56,15 @@ class Classifier:
         self.std_param          = std_param
         self.training_epochs    = num_epochs
         self.display_step       = display_step
+        self.batch_size         = batch_size
         self.debug              = debug
         self.normalize          = normalize
-        self.num_input          = num_input
-        self.num_steps          = num_steps
-        self.batch_size         = batch_size
+        self.blacklist          = blacklist
+        self.whitelist          = whitelist
+
+        assert not (self.blacklist and self.whitelist), (
+            'Both whitelist and blacklist are defined'
+        )
 
         ########################################
         # TensorFlow Variables                 #
@@ -64,54 +72,30 @@ class Classifier:
 
         self.X = tf.placeholder('float', [None, num_input], name='X')
         self.Y = tf.placeholder('int32', [None], name='Y')
-        self.Z = tf.placeholder('float',
-                                [None, num_steps*num_input], name='Z')
-        self.Z_gen = tf.placeholder('float',
-                                    [None, num_steps*num_input], name='Z_gen')
         self.keep_prob = tf.placeholder('float')
 
-        # Cost threshold
+        # Cost threshold for anomaly detection
         self.cost_threshold = tf.Variable(0, dtype=tf.float32)
 
         # for normalization
-        self.feature_min = tf.Variable(np.zeros(num_input*num_steps),
-                                       dtype=tf.float32)
-        self.feature_max = tf.Variable(np.zeros(num_input*num_steps),
-                                       dtype=tf.float32)
+        self.feature_min = tf.Variable(np.zeros(num_input), dtype=tf.float32)
+        self.feature_max = tf.Variable(np.zeros(num_input), dtype=tf.float32)
 
-        self.compression_layer = []
+        # Create Network
+        network_sizes = [num_input, 25, 2, 25, num_input]
+        activations = [tf.nn.relu, tf.nn.sigmoid, tf.nn.relu, tf.nn.sigmoid]
 
-        for i in range(num_steps):
-            with tf.variable_scope('compression_layer-{}'.format(i)):
-                net = NeuralNet([num_input, num_units, num_input],
-                                [tf.nn.sigmoid, tf.identity])
+        self.neural_net = NeuralNet(network_sizes, activations)
 
-                prediction = net.create_network(self.X, self.keep_prob)
-                cost = tf.reduce_mean(tf.square(prediction - self.X))
-                cost += self.reg_param * net.get_l2_loss()
-                train_fn = tf.train.AdamOptimizer(learning_rate=self.l_rate)
-                opt = train_fn.minimize(cost)
+        prediction = self.neural_net.create_network(self.X, self.keep_prob)
 
-                self.compression_layer.append(dict(
-                    prediction=prediction,
-                    cost=cost,
-                    opt=opt,
-                    net=net
-                ))
-
-        self.net = NeuralNet(
-            [num_input*num_steps, num_units, num_input*num_steps],
-            [tf.nn.sigmoid, tf.identity]
-        )
-
-        self.prediction = self.net.create_network(self.Z_gen, self.keep_prob)
-        self.cost = tf.reduce_mean(tf.square(self.prediction - self.Z))
-        self.cost += self.reg_param * self.net.get_l2_loss()
+        self.cost = tf.reduce_mean(tf.square(prediction - self.X))
+        self.cost += self.reg_param * self.neural_net.get_l2_loss()
         train_fn = tf.train.AdamOptimizer(learning_rate=self.l_rate)
         self.opt = train_fn.minimize(self.cost)
 
         # Evaluation meterics
-        self.all_costs = tf.reduce_mean(tf.square(self.prediction - self.Z), 1)
+        self.all_costs = tf.reduce_mean(tf.square(prediction - self.X), 1)
 
         negative_labels = tf.fill(tf.shape(self.Y), -1)
         positive_labels = tf.fill(tf.shape(self.Y), 1)
@@ -154,128 +138,68 @@ class Classifier:
         self.fp_rate = tf.div(self.fp_num, self.fp_num + self.tn_num)
         self.fn_rate = tf.div(self.fn_num, self.fn_num + self.tp_num)
 
-        # init and saver
+        # Variable ops
         self.init_op = tf.global_variables_initializer()
         self.saver = tf.train.Saver()
 
         # for gpu
         self.config = tf.ConfigProto(log_device_placement=False)
-        self.config.gpu_options.allow_growth = False
+        self.config.gpu_options.allow_growth = True
 
-    def train(self, train_file, reset_weights=False):
+    def train(self, train_file='', reset_weights=False):
         """Trains classifier
 
         Args:
-            train_file (str):
-                Location of csv formatted training file.
+            train_file (str = ''):
+                Training file location csv formatted,
+                must consist of only regular behavior.
             reset_weights (bool = False):
-                Flag to reset the weights for the entire network
+                Flag to reset weights.
         """
 
-        X, _ = load_data(train_file)
+        X, Y = load_data(train_file, self.blacklist, self.whitelist)
         training_size = X.shape[0]
 
-        # normalize input data
+        # normalize X
         if self.normalize:
             _min = X.min(axis=0)
             _max = X.max(axis=0)
             X = normalize(X, _min, _max)
 
-        X_mat = np.reshape(X, (training_size,
-                               self.num_steps,
-                               self.num_input))
-
         assert self.batch_size < training_size, (
-            'batch size is larger than training size'
+            'batch size is larger than training_size'
         )
 
         with tf.Session(config=self.config) as sess:
             sess.run(self.init_op)
 
             if reset_weights:
-                sess.run(self.net.reset_weights())
-                for node in self.compression_layer:
-                    sess.run(node['net'].reset_weights())
-
-            # Train the compression layer
-            for epoch in range(self.training_epochs):
-                for j, node in enumerate(self.compression_layer):
-                    cost = 0
-                    num_costs = 0
-
-                    for batch_x, in gen_batches([X_mat], self.batch_size):
-                        feed_dict = {
-                            self.X: batch_x[:, j],
-                            self.keep_prob: self.dropout_prob
-                        }
-
-                        _, c = sess.run([node['opt'], node['cost']],
-                                        feed_dict=feed_dict)
-
-                        cost += c
-                        num_costs += 1
-
-                    if epoch % self.display_step == 0:
-                        print_str = 'Optimization for Compression Node: {2}\n'
-                        print_str += 'Epoch {0:04} with cost {1:.9f}'
-                        print_str = print_str.format(
-                            epoch+1,
-                            cost/num_costs,
-                            j
-                        )
-                        self.print(print_str)
+                sess.run(self.neural_net.reset_weights())
 
             costs = []
 
-            self.print('Optimizing the final layer...')
-
-            # Train the final layer
             for epoch in range(self.training_epochs):
                 cost = 0
                 num_costs = 0
-                for i in range(0, training_size, self.batch_size):
-                    # for batch training
-                    end_batch = i + self.batch_size
-                    if end_batch >= training_size:
-                        end_batch = training_size - 1
-
-                    Z_gen = np.array([sess.run(
-                        self.compression_layer[j]['prediction'],
-                        feed_dict={
-                            self.X: X_mat[i:end_batch][:, j],
-                            self.keep_prob: self.dropout_prob
-                        }
-                    ) for j in range(self.num_steps)])
-
-                    Z_gen = np.swapaxes(Z_gen, 0, 1)
-                    Z_gen = np.reshape(
-                        Z_gen,
-                        (Z_gen.shape[0], self.num_input*self.num_steps)
-                    )
-
-                    feed_dict = {
-                        self.Z: X[i:end_batch],
-                        self.Z_gen: Z_gen,
+                for batch_x, in gen_batches([X], self.batch_size):
+                    _, c = sess.run([self.opt, self.cost], feed_dict={
+                        self.X: batch_x,
                         self.keep_prob: self.dropout_prob
-                    }
-
-                    _, c = sess.run([self.opt, self.cost],
-                                    feed_dict=feed_dict)
+                    })
 
                     cost += c
                     num_costs += 1
 
+                    # calculate average cost on last epoch for threshold
                     if epoch == self.training_epochs - 1:
                         costs.append(c)
 
                 if epoch % self.display_step == 0:
-                    print_str = 'Epoch {0:04} with cost {1:.9f}'
-                    print_str = print_str.format(
-                        epoch+1,
-                        cost/num_costs
-                    )
-                    self.print(print_str)
+                    display_str = 'Epoch {0:04} with cost={1:.9f}'
+                    display_str = display_str.format(epoch+1, cost/num_costs)
+                    self.print(display_str)
 
+            # assign cost threshold
             cost_threshold = np.mean(costs) + self.std_param * np.std(costs)
             sess.run(self.cost_threshold.assign(cost_threshold))
 
@@ -292,24 +216,28 @@ class Classifier:
             save_path = self.saver.save(sess, './model.ckpt')
             self.print('Model saved in file: {}'.format(save_path))
 
-    def test(self, test_file):
+    def test(self, test_file=''):
         """Tests classifier
 
         Args:
-            test_file (str):
-                Location of the test file.
+            test_file (str = ''):
+                Testing file location csv formatted.
+
         Returns:
-            (dict): Dictionary containing the following fields
-                accuracy
-                false positive rate
-                false negative rate
-                true positive rate
-                true negative rate
+            (dict):
+                Dictionary containing the following fields:
+                    accuracy, tp_rate, fp_rate, fn_rate, and tn_rate.
         """
 
-        X, Y = load_data(test_file)
+        X, Y = load_data(test_file, self.blacklist, self.whitelist)
 
-        testing_size = X.shape[0]
+        rtn_dict = {
+            'num_acc': 0,
+            'num_fp': 0,
+            'num_tn': 0,
+            'num_fn': 0,
+            'num_tp': 0
+        }
 
         with tf.Session(config=self.config) as sess:
             self.saver.restore(sess, './model.ckpt')
@@ -321,35 +249,17 @@ class Classifier:
 
                 X = normalize(X, _min, _max)
 
-            X_mat = np.reshape(X, (testing_size,
-                                   self.num_steps,
-                                   self.num_input))
-
-            Z_gen = np.array([sess.run(
-                self.compression_layer[j]['prediction'],
-                feed_dict={
-                    self.X: X_mat[:, j],
-                    self.keep_prob: 1.0
-                }
-            ) for j in range(self.num_steps)]).swapaxes(0, 1)
-
-            Z_gen = Z_gen.reshape(
-                (Z_gen.shape[0], self.num_input*self.num_steps)
-            )
-
             perf = sess.run([self.tp_rate, self.tn_rate,
                              self.fp_rate, self.fn_rate,
                              self.tp_num, self.tn_num,
                              self.fp_num, self.fn_num,
                              self.accuracy], feed_dict={
-                self.Z: X,
-                self.Z_gen: Z_gen,
+                self.X: X,
                 self.Y: Y,
                 self.keep_prob: 1.0
             })
 
             rtn_dict = {}
-
             # rtn_dict['tp_rate']     = float(perf[0] * 100)
             # rtn_dict['tn_rate']     = float(perf[1] * 100)
             # rtn_dict['fp_rate']     = float(perf[2] * 100)
@@ -362,17 +272,18 @@ class Classifier:
 
             self.print(json.dumps(rtn_dict, indent=4))
 
-        return rtn_dict
+            return rtn_dict
 
-    def print(self, msg):
+    def print(self, val):
         """Internal function for printing"""
 
         if self.debug:
-            print(msg)
+            print(val)
 
 
 def normalize(data, _min, _max):
     """Function to normalize a dataset of features
+
     Args:
         data (np.ndarray):
             Feature matrix.
@@ -380,9 +291,9 @@ def normalize(data, _min, _max):
             List of minimum values per feature.
         _max (list):
             List of maximum values per feature.
+
     Returns:
-        (np.ndarray):
-            Normalized features of the same shape as data.
+        (np.ndarray): Normalized features of the same shape as data
     """
 
     new_data = (data - _min) / (_max - _min)
@@ -472,6 +383,9 @@ if __name__ == '__main__':
                         type=int,
                         default=10,
                         help='Number of training epochs')
+    parser.add_argument('--whitelist', '-w',
+                        type=str,
+                        help='Location of the whitelist file (csv formatted)')
     parser.add_argument('--normalize', '-n',
                         action='store_true',
                         help='Flag to normalize features')
@@ -480,11 +394,19 @@ if __name__ == '__main__':
 
     filename = args.train_file if args.train_file else args.test_file
 
-    X, Y = load_data(filename)
-    num_input = X.shape[0]
+    whitelist = []
+    if args.whitelist:
+        with open(args.whitelist, 'r') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                whitelist = row
 
-    classifier = Classifier(num_input, 10, 3, args.batch_size, args.epochs,
-                            debug=True, normalize=args.normalize)
+    X, Y = load_data(filename, whitelist=whitelist)
+    num_input = len(X[0])
+
+    classifier = Classifier(num_input, args.batch_size, args.epochs,
+                            debug=True, whitelist=whitelist,
+                            normalize=args.normalize)
 
     if args.train_file:
         classifier.train(args.train_file)

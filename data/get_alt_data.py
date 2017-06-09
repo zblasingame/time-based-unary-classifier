@@ -52,6 +52,7 @@ for root, _, _files in os.walk(args.dir):
 
 for name in files:
     with open(name, 'r') as f:
+        print(name)
         raw_data    = [row for row in csv.reader(f)]
         header      = raw_data[0]
         data        = np.array(raw_data[1:]).astype(np.float32)
